@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"simplemath"
 	"strconv"
+
+	"github.com/PoacherBro/go-lab/simplemath"
 )
 
 // Usage print usage of calc
