@@ -1,7 +1,0 @@
-server:
-  port: 9010
-
-ext:
-  columnist_url: [
-    'https://time.geekbang.org/column/48'
-  ]
