@@ -17,6 +17,7 @@ type Producer struct {
 // NewAsyncProducer create new Producer instance
 func NewAsyncProducer(cfg *ProducerConfig) (*Producer, error) {
 	config := sarama.NewConfig()
+	config.Metadata.RefreshFrequency = 3 * time.Minute
 	config.Producer.RequiredAcks = sarama.WaitForAll
 	config.Producer.Compression = sarama.CompressionSnappy
 	config.Producer.Partitioner = createPartitioner(cfg)

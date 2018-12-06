@@ -13,7 +13,6 @@ import (
 )
 
 func initProducer() (*kafka.Producer, error) {
-
 	cfg := &kafka.ProducerConfig{
 		Brokers:        []string{"localhost:9092"},
 		MaxRetry:       5,
@@ -25,6 +24,7 @@ func initProducer() (*kafka.Producer, error) {
 }
 
 func TestProducer(t *testing.T) {
+	log.SetFlags(log.Ldate | log.Lshortfile)
 	topics := []string{"test1"}
 	producer, err := initProducer()
 	if err != nil {

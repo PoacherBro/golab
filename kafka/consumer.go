@@ -41,6 +41,7 @@ type Consumer struct {
 // NewConsumer create a consumer to subscribe many topics
 func NewConsumer(cfg *ConsumerConfig, handler MessageHanlder) (*Consumer, error) {
 	clusterConfig := cluster.NewConfig()
+	clusterConfig.Metadata.RefreshFrequency = 1 * time.Minute
 	clusterConfig.Group.Mode = cluster.ConsumerModePartitions
 	clusterConfig.Group.Return.Notifications = true
 	clusterConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
