@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/PoacherBro/golab/kafka"
+	"github.com/Shopify/sarama"
 )
 
 func initProducer() (*kafka.Producer, error) {
@@ -25,6 +26,7 @@ func initProducer() (*kafka.Producer, error) {
 
 func TestProducer(t *testing.T) {
 	log.SetFlags(log.Ldate | log.Lshortfile)
+	sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	topics := []string{"test1"}
 	producer, err := initProducer()
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/PoacherBro/golab/kafka"
+	"github.com/Shopify/sarama"
 )
 
 type tmpMsgHandler struct {
@@ -39,6 +40,7 @@ func initConsumer(t *testing.T) (*kafka.Consumer, error) {
 
 func TestConsumer(t *testing.T) {
 	log.SetFlags(log.Ldate | log.Lshortfile)
+	sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	consumer, err := initConsumer(t)
 	if err != nil {
 		t.Error(err)
