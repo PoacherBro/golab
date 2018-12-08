@@ -79,6 +79,9 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = ["github.com/bsm/sarama-cluster"]
+  input-imports = [
+    "github.com/Shopify/sarama",
+    "github.com/bsm/sarama-cluster",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
