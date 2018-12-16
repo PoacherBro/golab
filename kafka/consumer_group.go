@@ -66,11 +66,16 @@ func NewConsumerGroup(cfg *ConsumerConfig, handler MessageHanlder) (*ConsumerGro
 
 // Consume start to consume messages
 func (c *ConsumerGroup) Consume() {
-	h := consumerGroupMsgHandler{msgHanlder: c.handler}
+	h := consumerGroupMsgHandler{msgHanlder: c.handler, consumerGroup: c}
 	for {
 		err := c.cg.Consume(context.Background(), c.cfg.Topic, h)
 		if err != nil {
 			log.Println(err)
 		}
 	}
+}
+
+// Close consumer group to release resources
+func (c *ConsumerGroup) Close() error {
+	return c.cg.Close()
 }
