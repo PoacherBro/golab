@@ -32,7 +32,7 @@ func (h consumerGroupMsgHandler) ConsumeClaim(sess sarama.ConsumerGroupSession, 
 type ConsumerGroup struct {
 	clientName string
 	cfg        *ConsumerConfig
-	cg         *sarama.ConsumerGroup
+	cg         sarama.ConsumerGroup
 	handler    MessageHanlder
 }
 
@@ -54,18 +54,23 @@ func NewConsumerGroup(cfg *ConsumerConfig, handler MessageHanlder) (*ConsumerGro
 			log.Printf("Consumer Group: [%s] consumer err %v", cfg.GroupID, err)
 		}
 	}()
-	h := consumerGroupMsgHandler{msgHanlder: handler}
+
 	consumerGroup := &ConsumerGroup{
 		clientName: clientName,
 		cfg:        cfg,
-		cg:         &cg,
+		cg:         cg,
 		handler:    handler,
 	}
-	go func() {
-		err := cg.Consume(context.Background(), cfg.Topic, h)
+	return consumerGroup, nil
+}
+
+// Consume start to consume messages
+func (c *ConsumerGroup) Consume() {
+	h := consumerGroupMsgHandler{msgHanlder: c.handler}
+	for {
+		err := c.cg.Consume(context.Background(), c.cfg.Topic, h)
 		if err != nil {
 			log.Println(err)
 		}
-	}()
-	return consumerGroup, nil
+	}
 }
