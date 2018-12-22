@@ -37,6 +37,8 @@
 ## TO-DO
 
 1. 为Kafka SDK增加单独的日志，这样可以很好监控。当前是使用日志的关键字`Kafka Producer`和`Kafka Consumer`；  
-2. 测试Consumer里Rebalance Error的情况。  
+2. 测试Consumer里Rebalance Error的情况;  
+3. 经测试，发现在kafka-manager里动态增加partition，producer能反应，马上发送message到新的partition，而consumer group却没有。都是设置了`metadata.fresh.frequency`，不知道为何consumer group没有起作用，需要查看下是哪里问题。  
+
 
 
