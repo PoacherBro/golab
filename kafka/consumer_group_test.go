@@ -12,13 +12,12 @@ import (
 	"github.com/Shopify/sarama"
 )
 
-type tmpMsgHandler struct {
+type tmpConsumerGroupMsgHandler struct {
 	log *testing.T
 }
 
-func (t *tmpMsgHandler) Consume(msg *kafka.ConsumerMessage) error {
-	logMsg := fmt.Sprintf("Receive topic[%s]-partition[%d]-offset[%d] message (key=%s, value=[%s]",
-		msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
+func (t *tmpConsumerGroupMsgHandler) Consume(msg *kafka.Message) error {
+	logMsg := fmt.Sprintf("Receive message (key=%s, value=[%s]", string(msg.Key), string(msg.Entity))
 
 	t.log.Log(logMsg)
 	log.Println(logMsg)
@@ -34,8 +33,13 @@ func initConsumerGroup(t *testing.T) (*kafka.ConsumerGroup, error) {
 		GroupID:  "kafka-test",
 		Workers:  3,
 	}
-	handler := &tmpMsgHandler{log: t}
-	return kafka.NewConsumerGroup(cfg, handler)
+	handler := &tmpConsumerGroupMsgHandler{log: t}
+	cg, err := kafka.NewConsumerGroup(cfg)
+	if err != nil {
+		return nil, err
+	}
+	cg.RegisterHandler("test1", "testkey", handler)
+	return cg, err
 }
 
 func TestConsumerGroup(t *testing.T) {
