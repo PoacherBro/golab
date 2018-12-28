@@ -41,4 +41,10 @@
 3. 经测试，发现在kafka-manager里动态增加partition，producer能反应，马上发送message到新的partition，而consumer group却没有。都是设置了`metadata.fresh.frequency`，不知道为何consumer group没有起作用，需要查看下是哪里问题。  
 
 
+## 问题记录
+
+### 1. 使用Kafka命令工具，出现`JMX port already used`之类错误
+
+这可能是因为我启动了Kafka Manager里面的JMX特性，使用了这个JMX port。可以在运行命令之前加上 `unset JMX_PORT; bin/kafka-topics.sh ...`。  
+
 
