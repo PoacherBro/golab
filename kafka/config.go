@@ -34,3 +34,10 @@ type ConsumerConfig struct {
 	Workers  int
 	MaxRetry int
 }
+
+// Message for producer & consumer format
+type Message struct {
+	// Type is used for different register handler
+	Type   string `json:"type"`
+	Entity []byte `json:"entity"`
+}

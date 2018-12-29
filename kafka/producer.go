@@ -12,6 +12,8 @@ import (
 type Producer struct {
 	asynProducer sarama.AsyncProducer
 	pushTimeout  time.Duration
+	encoder      Encoder
+	quit         chan struct{}
 }
 
 // NewAsyncProducer create new Producer instance
@@ -23,6 +25,7 @@ func NewAsyncProducer(cfg *ProducerConfig) (*Producer, error) {
 	config.Producer.Partitioner = createPartitioner(cfg)
 	config.Producer.Flush.Frequency = cfg.FlushFrequency
 	config.Producer.Retry.Max = cfg.MaxRetry
+	config.Producer.Return.Successes = true
 
 	config.Net.DialTimeout = 3 * time.Second
 	config.Net.ReadTimeout = 3 * time.Second
@@ -36,11 +39,30 @@ func NewAsyncProducer(cfg *ProducerConfig) (*Producer, error) {
 
 	// 保证push时channel容量足够
 	pushTimeout := cfg.FlushFrequency + 1*time.Second
-	p := &Producer{asynProducer, pushTimeout}
+	p := &Producer{
+		asynProducer: asynProducer,
+		pushTimeout:  pushTimeout,
+		encoder:      JSONEncoder(),
+		quit:         make(chan struct{}),
+	}
 
 	go func() {
-		for err := range p.asynProducer.Errors() {
-			log.Printf("Kafka Producer: push error=%s", err.Error())
+		for {
+			select {
+			case <-p.quit: // 放在前面避免asynProducer close后为nil
+				return
+			case err, ok := <-p.asynProducer.Errors():
+				if ok {
+					msg := err.Msg
+					log.Printf("Kafka Producer: fail push topic[%s]-partition[%d]-offset[%d] error=%s",
+						msg.Topic, msg.Partition, msg.Offset, err.Error())
+				}
+			case msg, ok := <-p.asynProducer.Successes():
+				if ok {
+					log.Printf("Kafka Producer: success push topic[%s]-partition[%d]-offset[%d]",
+						msg.Topic, msg.Partition, msg.Offset)
+				}
+			}
 		}
 	}()
 
@@ -78,7 +100,6 @@ func (p *Producer) push(topic, key string, value []byte) error {
 		err := fmt.Errorf("Kafka Producer: %s publish msg timeout", p.getID(topic, key))
 		return err
 	}
-
 }
 
 func createPartitioner(cfg *ProducerConfig) sarama.PartitionerConstructor {
@@ -102,10 +123,16 @@ func (p *Producer) Close() error {
 	if err = p.asynProducer.Close(); err != nil {
 		log.Printf("Kafka Producer: close fail, %v", err)
 	}
+	close(p.quit)
 	p.asynProducer = nil
 	return err
 }
 
 func (p *Producer) getID(topic, key string) string {
 	return fmt.Sprintf("topic[%s]-key[%s]", topic, key)
+}
+
+// SetEncoder set encoder for produced message
+func (p *Producer) SetEncoder(encoder Encoder) {
+	p.encoder = encoder
 }

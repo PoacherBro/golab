@@ -1,6 +1,7 @@
 package kafka_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -45,7 +46,11 @@ func TestProducer(t *testing.T) {
 				t := time.Now()
 				value := t.Format("20060102150405")
 				// err := producer.Push(topic, value)
-				err := producer.PushWithKey(topic, key, []byte(value))
+				data, _ := json.Marshal(&kafka.Message{
+					Type:   "id",
+					Entity: []byte(fmt.Sprintf("{\"value\": %s", value)),
+				})
+				err := producer.PushWithKey(topic, key, data)
 				if err != nil {
 					log.Printf(fmt.Sprintf("Topic[%s] push msg err=%v", topic, err))
 				}
