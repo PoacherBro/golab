@@ -32,3 +32,7 @@
 [[constraint]]
   name = "github.com/bsm/sarama-cluster"
   version = "2.1.15"
+
+[[constraint]]
+  name = "github.com/BurntSushi/toml"
+  version = "0.3.1"

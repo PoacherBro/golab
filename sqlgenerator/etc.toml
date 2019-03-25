@@ -1,0 +1,3 @@
+[file_options]
+batch_count = 500 # batch count of parameters in each SQL statement
+max_file_size = 3 # max size of output SQL file
