@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"strconv"
@@ -41,11 +42,11 @@ type fileOptions struct {
 func main() {
 	flag.Parse()
 	if len(*configFile) == 0 {
-		fmt.Println(fmt.Errorf("No config file specified"))
+		log.Fatalln("No config file specified")
 		return
 	}
 	if len(*dataFile) == 0 {
-		fmt.Println(fmt.Errorf("No source data file specified"))
+		log.Fatalln("No source data file specified")
 		return
 	}
 
@@ -56,13 +57,13 @@ func main() {
 
 	cfg := new(config)
 	if _, err := toml.Decode(cfgData, cfg); err != nil {
-		fmt.Println(fmt.Errorf("Parse config file error, %v", err))
+		log.Fatalf("Parse config file error, %v\n", err)
 		return
 	}
 
 	g := newGenerator(*dataFile, *outputFile, cfg)
 	go func() {
-		fmt.Println(fmt.Sprintf("got singal : %v", <-onExit()))
+		log.Printf("got singal : %v", <-onExit())
 		g.Stop()
 	}()
 	g.Start()
@@ -98,7 +99,7 @@ func newGenerator(dataFile, outputFile string, cfg *config) *generator {
 func (g *generator) Start() {
 	go g.sourceDataReader()
 	go g.sqlResultWriter()
-	fmt.Println("SQL generator start...")
+	log.Println("SQL generator start...")
 }
 
 func (g *generator) Stop() {
@@ -110,7 +111,7 @@ func (g *generator) sourceDataReader() {
 	g.wg.Add(1)
 	file, err := os.Open(*dataFile)
 	if err != nil {
-		fmt.Println(fmt.Errorf("Open file [%s] with err: %v", *dataFile, err))
+		log.Printf("Open file [%s] with err: %v\n", *dataFile, err)
 		return
 	}
 	defer func() {
@@ -132,7 +133,7 @@ func (g *generator) sourceDataReader() {
 		line := s.Text()
 		i, err := strconv.ParseInt(line, 10, 64)
 		if err != nil {
-			fmt.Println(fmt.Errorf("Unexpected source data: %s, err: %v", line, err))
+			log.Printf("Unexpected source data: %s, err: %v\n", line, err)
 			return
 		}
 
@@ -147,7 +148,7 @@ func (g *generator) sourceDataReader() {
 func (g *generator) sqlResultWriter() {
 	of, err := os.Create(g.outputSQLFile)
 	if err != nil {
-		fmt.Println(fmt.Errorf("cannot create output file [%s], err: %v", g.outputSQLFile, err))
+		log.Printf("cannot create output file [%s], err: %v\n", g.outputSQLFile, err)
 		g.closed = true
 		// consume all data from chan
 		for range g.queue {
@@ -161,7 +162,7 @@ func (g *generator) sqlResultWriter() {
 		sql := generateSQL(data)
 		b, err := w.WriteString(fmt.Sprintf("%s\n", sql))
 		if err != nil {
-			fmt.Println(fmt.Errorf("write the file fail, %v", err))
+			log.Printf("write the file fail, %v\n", err)
 			return
 		}
 		fmt.Printf("write SQL %d bytes\n", b)
