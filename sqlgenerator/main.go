@@ -131,6 +131,7 @@ func (g *generator) Start() {
 
 func (g *generator) Stop() {
 	g.closed = true
+	close(g.queue)
 	g.cancel()
 }
 
