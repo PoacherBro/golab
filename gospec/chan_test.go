@@ -15,7 +15,7 @@ type User struct {
 // 为了测试在关闭chan之后，仍然会出现nil pointer dereference panic
 func TestSendPointer(t *testing.T) {
 	buffer := make(chan *User, 3)
-	closeChan := make(chan bool, 1)
+	closeChan := make(chan bool)
 
 	var wg sync.WaitGroup
 
@@ -24,13 +24,14 @@ func TestSendPointer(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for {
+			fmt.Println("new loop...")
 			select {
 			case <-closeChan:
 				fmt.Println("consumer received quit")
 				return
 			case data := <-buffer:
 				time.Sleep(time.Second)
-				fmt.Println(fmt.Sprintf("%d-%s", data.ID, data.Name))
+				fmt.Println(fmt.Sprintf("%d-%s", data.ID, data.Name)) // panic here
 				//			default:
 				//				fmt.Println("No data")
 			}
