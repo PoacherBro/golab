@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultPatitionConsumerWorkers = 2
+	defaultPatitionConsumerWorkers = 1
 )
 
 // ConsumerMessage struct of passed to message handler
@@ -163,7 +163,6 @@ type partitionConsumerWorker struct {
 	handler   MessageHanlder
 	maxRetry  int
 	workerNo  int
-	quit      chan struct{}
 }
 
 func (c *Consumer) newPartitionConsumerWorker(pc cluster.PartitionConsumer, workerNo int) *partitionConsumerWorker {
@@ -175,7 +174,6 @@ func (c *Consumer) newPartitionConsumerWorker(pc cluster.PartitionConsumer, work
 		maxRetry:  c.cfg.MaxRetry + 1, // must execute once
 		handler:   c.msgHanlder,
 		name:      name,
-		quit:      make(chan struct{}),
 	}
 }
 
@@ -205,20 +203,13 @@ func (w *partitionConsumerWorker) startConsume() {
 				return
 			}
 			log.Printf("Kafka Consumer: [%s] receive msg error(%s)", w.name, err.Error())
-		case <-w.quit:
-			log.Printf("Kafka Consumer: [%s] worker quit", w.name)
-			return
 		}
 	}
 }
 
-func (w *partitionConsumerWorker) waitDone() {
+func (w *partitionConsumerWorker) close() {
+	w.pc.AsyncClose() // will trigger a rebalance
+	w.waitDone()
 	w.waitGroup.Wait()
 	log.Printf("Kafka Consumer: [%s] finished work", w.name)
-}
-
-func (w *partitionConsumerWorker) close() {
-	close(w.quit)
-	w.waitDone()
-	w.pc.AsyncClose() // will trigger a rebalance
 }
