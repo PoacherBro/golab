@@ -159,7 +159,7 @@ func (c *Consumer) closePartitionWorkerWithRebalance() {
 type partitionConsumerWorker struct {
 	name      string
 	pc        cluster.PartitionConsumer
-	waitGroup *sync.WaitGroup
+	waitGroup sync.WaitGroup
 	handler   MessageHanlder
 	maxRetry  int
 	workerNo  int
@@ -169,7 +169,6 @@ func (c *Consumer) newPartitionConsumerWorker(pc cluster.PartitionConsumer, work
 	name := fmt.Sprintf("(%s<%s>)-%s-p%d-%d", c.clientName, time.Now().Format("20060102150405"), pc.Topic(), pc.Partition(), workerNo)
 	return &partitionConsumerWorker{
 		pc:        pc,
-		waitGroup: &sync.WaitGroup{},
 		workerNo:  workerNo,
 		maxRetry:  c.cfg.MaxRetry + 1, // must execute once
 		handler:   c.msgHanlder,
@@ -209,7 +208,6 @@ func (w *partitionConsumerWorker) startConsume() {
 
 func (w *partitionConsumerWorker) close() {
 	w.pc.AsyncClose() // will trigger a rebalance
-	w.waitDone()
 	w.waitGroup.Wait()
 	log.Printf("Kafka Consumer: [%s] finished work", w.name)
 }
