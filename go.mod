@@ -15,6 +15,7 @@ require (
 	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/pierrec/lz4 v0.0.0-20181005164709-635575b42742 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20181016184325-3113b8401b8a // indirect
+	github.com/sergi/go-diff v1.0.0
 )
 
 replace (

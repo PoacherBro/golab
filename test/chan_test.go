@@ -1,4 +1,4 @@
-package gospec_test
+package test
 
 import (
 	"fmt"
