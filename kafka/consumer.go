@@ -87,7 +87,11 @@ func validConfigValue(cfg *ConsumerConfig) {
 
 func (c *Consumer) reportError() {
 	for err := range c.consumer.Errors() {
-		log.Println("Kafka Consumer: receive consume err", err)
+		if cerr, ok := err.(*sarama.ConsumerError); ok {
+			log.Println("Kafka Consumer: consume failed", cerr.Error())
+		} else {
+			log.Println("Kafka Consumer: receive unknown err", err)
+		}
 	}
 }
 
