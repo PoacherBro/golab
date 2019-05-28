@@ -1,15 +1,14 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/Shopify/sarama"
-	cluster "github.com/bsm/sarama-cluster"
 )
 
 const (
@@ -31,25 +30,22 @@ type MessageHandler interface {
 // Consumer kafka consumer group
 // Group means a biz unit, should process the related biz based on subscribed topics
 type Consumer struct {
-	clientName       string
-	cfg              *ConsumerConfig
-	consumer         *cluster.Consumer
-	msgHandler       MessageHandler
-	partitionWorkers []*partitionConsumerWorker
+	clientName string
+	cfg        *ConsumerConfig
+	consumer   sarama.ConsumerGroup
+	msgHandler MessageHandler
+	pc         *partitionConsumer
 }
 
 // NewConsumer create a consumer to subscribe many topics
 func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error) {
-	clusterConfig := cluster.NewConfig()
-	clusterConfig.Metadata.RefreshFrequency = 1 * time.Minute
-	clusterConfig.Group.Mode = cluster.ConsumerModePartitions
-	clusterConfig.Group.Return.Notifications = true
-	clusterConfig.Consumer.Offsets.Initial = sarama.OffsetNewest
-	clusterConfig.Consumer.Return.Errors = true
+	config := sarama.NewConfig()
+	config.Metadata.RefreshFrequency = 1 * time.Minute
+	config.Consumer.Offsets.Initial = sarama.OffsetNewest
+	config.Consumer.Return.Errors = true
 	clientName := generateClientID(cfg.GroupID)
-	clusterConfig.ClientID = clientName
-
-	c, err := cluster.NewConsumer(cfg.Brokers, cfg.GroupID, cfg.Topic, clusterConfig)
+	config.ClientID = clientName
+	c, err := sarama.NewConsumerGroup(cfg.Brokers, cfg.GroupID, config)
 	if err != nil {
 		log.Printf("Kafka Consumer: [%s] init fail, %v", clientName, err)
 		return nil, err
@@ -57,13 +53,14 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error)
 
 	validConfigValue(cfg)
 	consumer := &Consumer{
-		clientName:       clientName,
-		cfg:              cfg,
-		consumer:         c,
-		msgHandler:       handler,
-		partitionWorkers: make([]*partitionConsumerWorker, 0),
+		clientName: clientName,
+		cfg:        cfg,
+		consumer:   c,
+		msgHandler: handler,
 	}
+	consumer.pc = consumer.newPartitionConsumer(handler)
 	log.Printf("Kafka Consumer: [%s] init success", clientName)
+	go consumer.reportError()
 
 	return consumer, nil
 }
@@ -88,11 +85,14 @@ func validConfigValue(cfg *ConsumerConfig) {
 	}
 }
 
+func (c *Consumer) reportError() {
+	for err := range c.consumer.Errors() {
+		log.Println("Kafka Consumer: receive consume err", err)
+	}
+}
+
 // Close consumer
 func (c *Consumer) Close() error {
-	for _, w := range c.partitionWorkers {
-		w.close()
-	}
 	err := c.consumer.Close()
 	log.Printf("Kafka Consumer: [%s] consumer quit", c.clientName)
 	return err
@@ -102,112 +102,45 @@ func (c *Consumer) Close() error {
 func (c *Consumer) Consume() {
 	log.Printf("Kafka Consumer: [%s] start consume", c.clientName)
 	for {
-		select {
-		case p, ok := <-c.consumer.Partitions():
-			if !ok {
-				log.Printf("Kafka Consumer: [%s] partition chan closed", c.clientName)
-				return
-			}
-			for i := 0; i < c.cfg.Workers; i++ {
-				worker := c.newPartitionConsumerWorker(p, i)
-				c.partitionWorkers = append(c.partitionWorkers, worker)
-			}
-		case n, ok := <-c.consumer.Notifications():
-			if !ok {
-				log.Printf("Kafka Consumer: [%s] notification chan closed", c.clientName)
-				return
-			}
-			log.Printf("Kafka Consumer: [%s] %s, info{claimed: %v, released: %v, current: %v}",
-				c.clientName, n.Type.String(), n.Claimed, n.Released, n.Current)
-			switch n.Type {
-			case cluster.RebalanceStart:
-				c.closePartitionWorkerWithRebalance()
-			case cluster.RebalanceError:
-				log.Printf("Kafka Consumer: [%s] rebalance error, should restart", c.clientName)
-				for _, worker := range c.partitionWorkers {
-					// close worker and partition consumer, will trigger a rebalance again
-					worker.close()
-				}
-				// or just delete consumer directly
-				// go c.Close()
-			case cluster.RebalanceOK:
-				for _, worker := range c.partitionWorkers {
-					worker.waitGroup.Add(1)
-					go worker.startConsume()
-				}
-			default:
-			}
-		case err, ok := <-c.consumer.Errors():
-			if !ok {
-				log.Printf("Kafka Consumer: [%s] error chan closed", c.clientName)
-				return
-			}
-			log.Printf("Kafka Consumer: [%s] error: %v", c.clientName, err)
+		ctx := context.Background()
+		if err := c.consumer.Consume(ctx, c.cfg.Topic, c.pc); err != nil {
+			log.Println("Kafka Consumer: consume err", err)
 		}
 	}
 }
 
-// Release previous workers after rebalance as it will create new one.
-// Pls note the partitionConsumer will be closed by sarama-cluster automatically, no need to close again.
-func (c *Consumer) closePartitionWorkerWithRebalance() {
-	if len(c.partitionWorkers) == 0 {
-		return
-	}
-	c.partitionWorkers = nil // mark as workers can be gc
+type partitionConsumer struct {
+	handler MessageHandler
+	parent  *Consumer
 }
 
-type partitionConsumerWorker struct {
-	name      string
-	pc        cluster.PartitionConsumer
-	waitGroup sync.WaitGroup
-	handler   MessageHandler
-	maxRetry  int
-	workerNo  int
-}
-
-func (c *Consumer) newPartitionConsumerWorker(pc cluster.PartitionConsumer, workerNo int) *partitionConsumerWorker {
-	name := fmt.Sprintf("(%s<%s>)-%s-p%d-%d", c.clientName, time.Now().Format("20060102150405"), pc.Topic(), pc.Partition(), workerNo)
-	return &partitionConsumerWorker{
-		pc:       pc,
-		workerNo: workerNo,
-		maxRetry: c.cfg.MaxRetry + 1, // must execute once
-		handler:  c.msgHandler,
-		name:     name,
+func (c *Consumer) newPartitionConsumer(handler MessageHandler) *partitionConsumer {
+	return &partitionConsumer{
+		handler: handler,
+		parent:  c,
 	}
 }
 
-func (w *partitionConsumerWorker) startConsume() {
-	log.Printf("Kafka Consumer: start partition consumer [%s]", w.name)
-	defer func() {
-		w.waitGroup.Done()
-	}()
-	for {
-		select {
-		case msg, more := <-w.pc.Messages():
-			if !more {
-				log.Printf("Kafka Consumer: [%s] partition msg chan closed", w.name)
-				return
+func (pc *partitionConsumer) Setup(sess sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+func (pc *partitionConsumer) Cleanup(sess sarama.ConsumerGroupSession) error {
+	return nil
+}
+
+func (pc *partitionConsumer) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	for msg := range claim.Messages() {
+		for i := 0; i < pc.parent.cfg.MaxRetry+1; i++ {
+			err := pc.handler.Consume(&ConsumerMessage{msg})
+			if err == nil {
+				break
 			}
-			for i := 0; i < w.maxRetry; i++ {
-				err := w.handler.Consume(&ConsumerMessage{msg})
-				if err == nil {
-					break
-				}
-				time.Sleep(1 * time.Second) // release CPU during retrying
-			}
-			w.pc.MarkOffset(msg.Offset, "")
-		case err, ok := <-w.pc.Errors():
-			if !ok {
-				log.Printf("Kafka Consumer: [%s] partition error chan closed", w.name)
-				return
-			}
-			log.Printf("Kafka Consumer: [%s] receive msg error(%s)", w.name, err.Error())
+			// release CPU and avoid network issue
+			increaseDuration := time.Duration((i + 1) * 300)
+			time.Sleep(increaseDuration * time.Millisecond)
 		}
+		sess.MarkMessage(msg, "")
 	}
-}
-
-func (w *partitionConsumerWorker) close() {
-	w.pc.AsyncClose() // will trigger a rebalance
-	w.waitGroup.Wait()
-	log.Printf("Kafka Consumer: [%s] finished work", w.name)
+	return nil
 }
