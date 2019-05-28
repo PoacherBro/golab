@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/bsm/sarama-cluster"
+	cluster "github.com/bsm/sarama-cluster"
 )
 
 const (
@@ -21,10 +21,10 @@ type ConsumerMessage struct {
 	*sarama.ConsumerMessage
 }
 
-// MessageHanlder registed by application to process message, each consumer has one message handler.
+// MessageHandler registed by application to process message, each consumer has one message handler.
 // Application should handle different message struct per different topic if he consumes multiple topics.
 // Returned error means consume failed, then message will be retied ConsumerConfig.MaxRetry times.
-type MessageHanlder interface {
+type MessageHandler interface {
 	Consume(msg *ConsumerMessage) error
 }
 
@@ -34,12 +34,12 @@ type Consumer struct {
 	clientName       string
 	cfg              *ConsumerConfig
 	consumer         *cluster.Consumer
-	msgHanlder       MessageHanlder
+	msgHandler       MessageHandler
 	partitionWorkers []*partitionConsumerWorker
 }
 
 // NewConsumer create a consumer to subscribe many topics
-func NewConsumer(cfg *ConsumerConfig, handler MessageHanlder) (*Consumer, error) {
+func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error) {
 	clusterConfig := cluster.NewConfig()
 	clusterConfig.Metadata.RefreshFrequency = 1 * time.Minute
 	clusterConfig.Group.Mode = cluster.ConsumerModePartitions
@@ -60,7 +60,7 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHanlder) (*Consumer, error)
 		clientName:       clientName,
 		cfg:              cfg,
 		consumer:         c,
-		msgHanlder:       handler,
+		msgHandler:       handler,
 		partitionWorkers: make([]*partitionConsumerWorker, 0),
 	}
 	log.Printf("Kafka Consumer: [%s] init success", clientName)
@@ -160,7 +160,7 @@ type partitionConsumerWorker struct {
 	name      string
 	pc        cluster.PartitionConsumer
 	waitGroup sync.WaitGroup
-	handler   MessageHanlder
+	handler   MessageHandler
 	maxRetry  int
 	workerNo  int
 }
@@ -168,11 +168,11 @@ type partitionConsumerWorker struct {
 func (c *Consumer) newPartitionConsumerWorker(pc cluster.PartitionConsumer, workerNo int) *partitionConsumerWorker {
 	name := fmt.Sprintf("(%s<%s>)-%s-p%d-%d", c.clientName, time.Now().Format("20060102150405"), pc.Topic(), pc.Partition(), workerNo)
 	return &partitionConsumerWorker{
-		pc:        pc,
-		workerNo:  workerNo,
-		maxRetry:  c.cfg.MaxRetry + 1, // must execute once
-		handler:   c.msgHanlder,
-		name:      name,
+		pc:       pc,
+		workerNo: workerNo,
+		maxRetry: c.cfg.MaxRetry + 1, // must execute once
+		handler:  c.msgHandler,
+		name:     name,
 	}
 }
 
