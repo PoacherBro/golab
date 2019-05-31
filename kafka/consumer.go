@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	defaultPatitionConsumerWorkers = 1
+	defaultPartitionConsumerWorkers = 1
 )
 
 // ConsumerMessage struct of passed to message handler
@@ -78,7 +78,7 @@ func generateClientID(groupID string) string {
 
 func validConfigValue(cfg *ConsumerConfig) {
 	if cfg.Workers <= 0 {
-		cfg.Workers = defaultPatitionConsumerWorkers
+		cfg.Workers = defaultPartitionConsumerWorkers
 	}
 	if cfg.MaxRetry < 0 {
 		cfg.MaxRetry = 0
