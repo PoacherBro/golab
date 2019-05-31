@@ -14,4 +14,4 @@
 # VS Code create debug file
 debug
 
-vendor
+.idea
