@@ -13,7 +13,7 @@ type User struct {
 }
 
 // 为了测试在关闭chan之后，仍然会出现nil pointer dereference panic
-// 解释：在channel close之后如果还有数据，是可以继续读取数据的，知道最后读取空值，即nil
+// 解释：在channel close之后如果还有数据，是可以继续读取数据的，直到最后读取空值，即nil
 // 所以可以使用两个参数接受， value, ok := <- chan，当ok为false，代表已经关闭了
 // 或者可以用 for-range的形式消费channel，这样也是在close之后退出循环
 func TestSendPointer(t *testing.T) {
