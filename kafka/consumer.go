@@ -35,6 +35,8 @@ type Consumer struct {
 	consumer   sarama.ConsumerGroup
 	msgHandler MessageHandler
 	pc         *partitionConsumer
+	ctx        context.Context
+	cancelCtx  context.CancelFunc
 }
 
 // NewConsumer create a consumer to subscribe many topics
@@ -58,6 +60,7 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error)
 		consumer:   c,
 		msgHandler: handler,
 	}
+	consumer.ctx, consumer.cancelCtx = context.WithCancel(context.Background())
 	consumer.pc = consumer.newPartitionConsumer(handler)
 	log.Printf("Kafka Consumer: [%s] init success", clientName)
 	go consumer.reportError()
@@ -97,6 +100,7 @@ func (c *Consumer) reportError() {
 
 // Close consumer
 func (c *Consumer) Close() error {
+	c.cancelCtx()
 	err := c.consumer.Close()
 	log.Printf("Kafka Consumer: [%s] consumer quit", c.clientName)
 	return err
@@ -106,8 +110,7 @@ func (c *Consumer) Close() error {
 func (c *Consumer) Consume() {
 	log.Printf("Kafka Consumer: [%s] start consume", c.clientName)
 	for {
-		ctx := context.Background()
-		if err := c.consumer.Consume(ctx, c.cfg.Topic, c.pc); err != nil {
+		if err := c.consumer.Consume(c.ctx, c.cfg.Topic, c.pc); err != nil {
 			log.Println("Kafka Consumer: consume err", err)
 		}
 	}
@@ -136,6 +139,13 @@ func (pc *partitionConsumer) Cleanup(sess sarama.ConsumerGroupSession) error {
 func (pc *partitionConsumer) ConsumeClaim(sess sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	for msg := range claim.Messages() {
 		for i := 0; i < pc.parent.cfg.MaxRetry+1; i++ {
+			// quick first
+			select {
+			case <-sess.Context().Done():
+				return nil
+			default:
+			}
+
 			err := pc.handler.Consume(&ConsumerMessage{msg})
 			if err == nil {
 				break
