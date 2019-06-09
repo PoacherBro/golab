@@ -56,7 +56,8 @@ func TestProducer(t *testing.T) {
 				}
 				log.Printf("Pushed value: key[%s]-value[%s]", key, value)
 
-				time.Sleep(3 * time.Second)
+				// control produce speed
+				time.Sleep(10 * time.Millisecond)
 			}
 		}(topic)
 	}

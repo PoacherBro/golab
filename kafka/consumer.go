@@ -47,6 +47,7 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error)
 	config.Consumer.Return.Errors = true
 	clientName := generateClientID(cfg.GroupID)
 	config.ClientID = clientName
+	config.Version = sarama.V1_1_0_0
 	c, err := sarama.NewConsumerGroup(cfg.Brokers, cfg.GroupID, config)
 	if err != nil {
 		log.Printf("Kafka Consumer: [%s] init fail, %v", clientName, err)
@@ -110,8 +111,13 @@ func (c *Consumer) Close() error {
 func (c *Consumer) Consume() {
 	log.Printf("Kafka Consumer: [%s] start consume", c.clientName)
 	for {
-		if err := c.consumer.Consume(c.ctx, c.cfg.Topic, c.pc); err != nil {
-			log.Println("Kafka Consumer: consume err", err)
+		select {
+		case <-c.ctx.Done():
+			return
+		default:
+			if err := c.consumer.Consume(c.ctx, c.cfg.Topic, c.pc); err != nil {
+				log.Println("Kafka Consumer: consume err", err)
+			}
 		}
 	}
 }
@@ -149,6 +155,12 @@ func (pc *partitionConsumer) ConsumeClaim(sess sarama.ConsumerGroupSession, clai
 			err := pc.handler.Consume(&ConsumerMessage{msg})
 			if err == nil {
 				break
+			}
+
+			select {
+			case <-sess.Context().Done():
+				return nil
+			default:
 			}
 			// release CPU and avoid network issue
 			increaseDuration := time.Duration((i + 1) * 300)

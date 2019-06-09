@@ -30,7 +30,8 @@ type ConsumerConfig struct {
 	Brokers []string
 	Topic   []string
 	GroupID string
-	// Workers count of workers per each partition consumer
+	// Workers count of workers per each partition consumer.
+	// If you want to process message with sequence, should just set worker count=1.
 	Workers  int
 	MaxRetry int
 }

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/PoacherBro/golab/kafka"
 	"github.com/Shopify/sarama"
@@ -20,8 +21,11 @@ func (t *tmpMsgHandler) Consume(msg *kafka.ConsumerMessage) error {
 	logMsg := fmt.Sprintf("Receive topic[%s]-partition[%d]-offset[%d] message (key=%s, value=[%s]",
 		msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value))
 
-	t.log.Log(logMsg)
+	// t.log.Log(logMsg)
 	log.Println(logMsg)
+
+	// control consume speed
+	time.Sleep(time.Second)
 
 	return nil
 }
