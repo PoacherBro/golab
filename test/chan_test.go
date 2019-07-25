@@ -65,3 +65,30 @@ func TestSendPointer(t *testing.T) {
 	close(closeChan)
 	fmt.Println("closed closeChan")
 }
+
+// 主要测试有缓冲channel在阻塞情况下表现
+func TestBlockBufferedChan(t *testing.T) {
+	buffer := make(chan int, 3)
+	i := 0
+	timeoutCount := 0
+	defer func() {
+		close(buffer) // 先close才不会导致死锁
+		for v := range buffer {
+			fmt.Println(v)
+		}
+		fmt.Println(i)
+	}()
+
+	for {
+		select {
+		case buffer <- i:
+			i++
+		case <- time.After(time.Second):
+			fmt.Println("push to chan timeout")
+			timeoutCount++
+			if timeoutCount == 10 {
+				return
+			}
+		}
+	}
+}
