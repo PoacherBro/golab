@@ -32,6 +32,8 @@ type MessageHandler interface {
 type Consumer struct {
 	clientName string
 	cfg        *ConsumerConfig
+	client sarama.Client
+	clientConfig *sarama.Config
 	consumer   sarama.ConsumerGroup
 	msgHandler MessageHandler
 	pc         *partitionConsumer
@@ -45,10 +47,16 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error)
 	config.Metadata.RefreshFrequency = 1 * time.Minute
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
 	config.Consumer.Return.Errors = true
-	clientName := generateClientID(cfg.GroupID)
-	config.ClientID = clientName
+	config.ClientID = "golab-kafka"
 	config.Version = sarama.V1_1_0_0
-	c, err := sarama.NewConsumerGroup(cfg.Brokers, cfg.GroupID, config)
+
+	client, err := sarama.NewClient(cfg.Brokers, config)
+	if err != nil {
+		return nil, err
+	}
+
+	clientName := generateClientID(cfg.GroupID)
+	c, err := sarama.NewConsumerGroupFromClient(cfg.GroupID, client)
 	if err != nil {
 		log.Printf("Kafka Consumer: [%s] init fail, %v", clientName, err)
 		return nil, err
@@ -57,7 +65,9 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error)
 	validConfigValue(cfg)
 	consumer := &Consumer{
 		clientName: clientName,
+		client: client,
 		cfg:        cfg,
+		clientConfig: config,
 		consumer:   c,
 		msgHandler: handler,
 	}
@@ -115,7 +125,14 @@ func (c *Consumer) Consume() {
 		case <-c.ctx.Done():
 			return
 		default:
-			if err := c.consumer.Consume(c.ctx, c.cfg.Topic, c.pc); err != nil {
+			err := c.consumer.Consume(c.ctx, c.cfg.Topic, c.pc)
+			switch err {
+			case nil:
+			case sarama.ErrBrokerNotAvailable, sarama.ErrConsumerCoordinatorNotAvailable, sarama.ErrNotCoordinatorForConsumer:
+				if err = c.client.RefreshCoordinator(c.cfg.GroupID); err != nil {
+					log.Println("Kafka Consumer: RefreshCoordinator failed", err)
+				}
+			default:
 				log.Println("Kafka Consumer: consume err", err)
 			}
 		}
