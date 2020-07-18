@@ -1,3 +1,7 @@
 {
-    "go.formatTool": "goimports"
+    "go.formatTool": "goimports",
+    "go.useLanguageServer": true,
+    "go.testFlags": [
+        "-v"
+    ]
 }
