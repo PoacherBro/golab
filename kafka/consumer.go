@@ -30,15 +30,15 @@ type MessageHandler interface {
 // Consumer kafka consumer group
 // Group means a biz unit, should process the related biz based on subscribed topics
 type Consumer struct {
-	clientName string
-	cfg        *ConsumerConfig
-	client sarama.Client
+	clientName   string
+	cfg          *ConsumerConfig
+	client       sarama.Client
 	clientConfig *sarama.Config
-	consumer   sarama.ConsumerGroup
-	msgHandler MessageHandler
-	pc         *partitionConsumer
-	ctx        context.Context
-	cancelCtx  context.CancelFunc
+	consumer     sarama.ConsumerGroup
+	msgHandler   MessageHandler
+	pc           *partitionConsumer
+	ctx          context.Context
+	cancelCtx    context.CancelFunc
 }
 
 // NewConsumer create a consumer to subscribe many topics
@@ -64,12 +64,12 @@ func NewConsumer(cfg *ConsumerConfig, handler MessageHandler) (*Consumer, error)
 
 	validConfigValue(cfg)
 	consumer := &Consumer{
-		clientName: clientName,
-		client: client,
-		cfg:        cfg,
+		clientName:   clientName,
+		client:       client,
+		cfg:          cfg,
 		clientConfig: config,
-		consumer:   c,
-		msgHandler: handler,
+		consumer:     c,
+		msgHandler:   handler,
 	}
 	consumer.ctx, consumer.cancelCtx = context.WithCancel(context.Background())
 	consumer.pc = consumer.newPartitionConsumer(handler)
