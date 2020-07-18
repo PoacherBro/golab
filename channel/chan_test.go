@@ -1,4 +1,4 @@
-package test
+package channel_test
 
 import (
 	"fmt"
@@ -83,7 +83,7 @@ func TestBlockBufferedChan(t *testing.T) {
 		select {
 		case buffer <- i:
 			i++
-		case <- time.After(time.Second):
+		case <-time.After(time.Second):
 			fmt.Println("push to chan timeout")
 			timeoutCount++
 			if timeoutCount == 10 {
